@@ -1,6 +1,7 @@
 Simply begin:
 -----
 ```
+
 [pek-lpd-ccm2:fsl-dpaa2]$find . | grep -r "module_init" *
 ethernet/dpaa2-eth.c:module_init(dpaa2_eth_driver_init);
 
@@ -15,6 +16,7 @@ evb/evb.c:static const struct net_device_ops evb_port_ops = {
 evb/evb.c:static const struct net_device_ops evb_ops = {
 mac/mac.c:static const struct net_device_ops dpaa2_mac_ndo_ops = {
 [pek-lpd-ccm2:fsl-dpaa2]$
+
 ```
 
 The key structure:
