@@ -321,6 +321,124 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 ****
 Regarding dpio-driver in mc, please check the **dpio-driver.txt** and **MC_README.txt**
 ****
+```
+The diagram below shows an overview of the DPAA2 resource management
+architecture:
+
+         +--------------------------------------+
+         |                  OS                  |
+         |                        DPAA2 drivers |
+         |                             |        |
+         +-----------------------------|--------+
+                                       |
+                                       | (create,discover,connect
+                                       |  config,use,destroy)
+                                       |
+                         DPAA2         |
+         +------------------------| mc portal |-+
+         |                             |        |
+         |   +- - - - - - - - - - - - -V- - -+  |
+         |   |                               |  |
+         |   |   Management Complex (MC)     |  |
+         |   |                               |  |
+         |   +- - - - - - - - - - - - - - - -+  |
+         |                                      |
+         | Hardware                  Hardware   |   
+         | Resources                 Objects    |   
+         | ---------                 -------    |   
+         | -queues                   -DPRC      |   
+         | -buffer pools             -DPMCP     |   
+         | -Eth MACs/ports           -DPIO      |   
+         | -network interface        -DPNI      |   
+         |  profiles                 -DPMAC     |   
+         | -queue portals            -DPBP      |   
+         | -MC portals                ...       |
+         |  ...                                 |
+         |                                      |
+         +--------------------------------------+
+
+The MC mediates operations such as create, discover,
+connect, configuration, and destroy.  Fast-path operations
+on data, such as packet transmit/receive, are not mediated by
+the MC and are done directly using memory mapped regions in
+DPIO objects.
+
+
+The diagram below shows the objects needed for a simple
+network interface configuration on a system with 2 CPUs.
+
+              +---+---+ +---+---+
+                 CPU0     CPU1
+              +---+---+ +---+---+
+                  |         |
+              +---+---+ +---+---+
+                 DPIO     DPIO
+              +---+---+ +---+---+
+                    \     /   
+                     \   /   
+                      \ /
+                   +---+---+
+                      DPNI  --- DPBP,DPMCP
+                   +---+---+
+                       |
+                       |
+                   +---+---+
+                     DPMAC
+                   +---+---+
+                       |
+                    port/PHY
+
+    Below the objects are described.  For each object a brief description
+    is provided along with a summary of the kinds of operations the object
+    supports and a summary of key resources of the object (MMIO regions
+    and IRQs).
+
+       -DPMAC (Datapath Ethernet MAC): represents an Ethernet MAC, a
+        hardware device that connects to an Ethernet PHY and allows
+        physical transmission and reception of Ethernet frames.
+           -MMIO regions: none
+           -IRQs: DPNI link change
+           -commands: set link up/down, link config, get stats,
+            IRQ config, enable, reset
+
+       -DPNI (Datapath Network Interface): contains TX/RX queues,
+        network interface configuration, and RX buffer pool configuration
+        mechanisms.  The TX/RX queues are in memory and are identified by
+        queue number.
+           -MMIO regions: none
+           -IRQs: link state
+           -commands: port config, offload config, queue config,
+            parse/classify config, IRQ config, enable, reset
+
+       -DPIO (Datapath I/O): provides interfaces to enqueue and dequeue
+        packets and do hardware buffer pool management operations.  The DPAA2
+        architecture separates the mechanism to access queues (the DPIO object)
+        from the queues themselves.  The DPIO provides an MMIO interface to
+        enqueue/dequeue packets.  To enqueue something a descriptor is written
+        to the DPIO MMIO region, which includes the target queue number.
+        There will typically be one DPIO assigned to each CPU.  This allows all
+        CPUs to simultaneously perform enqueue/dequeued operations.  DPIOs are
+        expected to be shared by different DPAA2 drivers.
+           -MMIO regions: queue operations, buffer management
+           -IRQs: data availability, congestion notification, buffer
+                  pool depletion
+           -commands: IRQ config, enable, reset
+
+       -DPBP (Datapath Buffer Pool): represents a hardware buffer
+        pool.
+           -MMIO regions: none
+           -IRQs: none
+           -commands: enable, reset
+
+       -DPMCP (Datapath MC Portal): provides an MC command portal.
+        Used by drivers to send commands to the MC to manage
+        objects.
+           -MMIO regions: MC command portal
+           -IRQs: command completion
+           -commands: IRQ config, enable, reset
+
+```
+
 
 Restool how to be sent to mc
 -----
