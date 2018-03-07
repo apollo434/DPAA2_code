@@ -469,3 +469,49 @@ static inline void __raw_writeq(u64 val, volatile void __iomem *addr)
 >>>>
 
 ```
+
+QORIQ-SDK-2.0-IC Key Information
+------
+*****
+
+The Key Release Files: RCW, DPC and DPL  (LS2088A as an example)
+
+RCW(LS2088A)
+It gives flexibility to accommodate a large number of configuration parameters to support a high degree of configuration of the SoC.
+Configuration parameters generally include:
+1. Frequencies of various blocks including cores/DDR/interconnect.
+2. IP pin-muxing configurations.
+3. Other SoC configurations
+
+I.E.
+PBL_1600_600_1600_1600_0x2a_0x41.bin
+1. Core: 1600 MHz
+2. Platform: 600 MHz
+3. DDR: 1600 MHz
+
+
+DPC(Data path configuration file)
+DPC contains board-specific and system-specific information that overrides the default DPAA hardware configuration.
+
+The file is named dpc-0x2a41.dts. This file specifies the following information:
+
+1. default logging mode for the MC
+2. default LS2085ARDB/LS2088ARDB MACs
+3. default number of DPAA channels with 2 and 8 work-queues
+
+The DPC is based on a text source file(similar to a device tree source file(DTS)) and compiled with the DTC utility to form a binary structure(blob, similar to DTB). The DPC file should be compiled to a binary blob using standard DTC tool.
+
+The DPC binary(dpc-0x2a41.dtb) is located in the IMAGE iso under dpl-examples/ls2088a/RDB/.
+
+
+DPL(Data path layout file)
+DPL defines the containers created during MC initialization.
+
+A prerequisite for the DPL to define the containers created during MC initialization is that the device tree compiler(dtc) tool is installed on the host system, since the dtc command is used to compile the DPL.
+
+dpl-examples package:
+dpl-eth.0x2A_0x41.dts ---- used for simple Ethernet senarios.
+
+
+
+******
