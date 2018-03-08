@@ -515,3 +515,160 @@ dpl-eth.0x2A_0x41.dts ---- used for simple Ethernet senarios.
 
 
 ******
+
+How to operate in u-boot and relevant command
+---
+
+```
+(layers/nxp-ls20xx/README)
+
+6. Creating Partitioned Images(WIC)
+===================================
+
+User can use the OpenEmbedded Image Creator, wic, to create the properly
+partitioned image on a SD card. The wic command
+generates partitioned images from existing OpenEmbedded build artifacts.
+User can refer to the below URL to get more WIC details:
+
+http://www.yoctoproject.org/docs/2.4/mega-manual/mega-manual.html#creating-partitioned-images-using-wic
+
+This BSP supports disk images for SD card.
+After build the project, user will get a WIC image under the directory
+tmp-glibc/deploy/images/<bsp name>/ ,such as:
+
+tmp-glibc/deploy/images/nxp-ls20xx/wrlinux-image-glibc-small-nxp-ls20xx.wic
+
+Then user can write the output image to a SD card:
+
+Since this BSP doesn't have a firmware to read the uboot from a partition table,
+WIC image only contains kernel, dtb and rootfs. We still need to write U-boot
+image to NOR flash directly as "bootloader/README" described.
+
+6.1 Burn images to SD card
+--------------------------
+
+To burn uboot and WIC images to SD card, user only need to execute the below command:
+
+# dd if=wrlinux-image-glibc-small-nxp-ls20xx.wic of=/dev/your_sd_dev
+
+6.2 Set uboot env
+-----------------
+
+Board can boot automatically by set the below uboot environment variables:
+
+=> setenv bootfile Image; setenv fdtfile  fsl-ls2088a-rdb.dtb;  setenv loadaddr 0xa0000000; setenv fdtaddr 0x90000000;
+
+=> setenv bootargs console=ttyS1,115200n8 root=/dev/mmcblk0p2 rw no_console_suspend ip=dhcp
+
+=> setenv bootcmd 'fsl_mc start mc 0x580a00000 0x580e00000; fsl_mc lazyapply dpl 0x580d00000; fatload mmc 0:1 $loadaddr $bootfile; fatload mmc 0:1 $fdtaddr $fdtfile; booti $loadaddr - $fdtaddr'
+
+=> saveenv; run bootcmd;
+7. Enable on-board 10G ports in kernel
+======================================
+
+LS2088A-RDB contains 8 on-board 10G ports, 4 'SFP+ Optical ports' and 4 'Copper ports'.
+
+They can be found in u-boot as below:
+DPMAC1@xgmii to DPMAC4@xgmii are Optical ports,
+DPMAC5@xgmii to DPMAC8@xgmii are Copper ports.
+
+These ports' status are controlled by DPL. SDK provides a default DPL:
+
+flexbuild/build/firmware/dpl-examples/ls2088a/RDB/dpl-eth.0x2A_0x41.dts
+
+it only enables the first Copper port: DPMAC5@xgmii.
+To enable other ports in kernel, user can modify this DPL or through an
+userspace application "restool" which is provided by SDK.
+Unfortunately, both DPL and "restool" have NXP's private license,
+WindRiver Linux can't merge them.
+So if user want to enable other ports in WindRiver Linux, user can
+update SDK's DPL's "connections" section manually:
+
+        connections {
+                connection@0{
+                        endpoint1 = "dpni@0";
+                        endpoint2 = "dpmac@5";
+                };
+        };
+
+
+For instance, if user want to enalbe the first Optical port, can replace
+
+                        endpoint2 = "dpmac@5";
+to
+
+                        endpoint2 = "dpmac@1";
+
+Then generate a new DPL on Host:
+
+dtc -I dts -O dtb dpl-eth.0x2A_0x41.dts -o dpl.dtb
+
+Upload this DPL to board and use it to init fsl_mc in u-boot's command line:
+
+tftp 0xa9000000 dpl.dtb;fsl_mc start mc 0x580a00000 0x580e00000;fsl_mc lazyapply dpl 0xa9000000;
+
+Other boot commands are same as usual.
+
+To get more details about above descriptions, please refer to instructions
+mentioned in the section
+
+        "7.2.3.3 Data path layout file (DPL)"
+in the NXP's SDK user manual
+
+        "Layerscape Software Development Kit 17.09 Documentation.pdf".
+
+8. kexec/kdump
+==============
+
+For discussion purposes, some useful terminology will be described here.
+
+boot kernel - the first kernel that you start and supports kexec,
+              from U-Boot for instance.
+capture kernel - the kernel that you reboot into after a boot kernel crash.
+
+To build the boot or capture kernel, use the following option with the configure
+command for your project:
+
+        --template=feature/kexec,feature/kdump
+
+To reserve a memory region for the capture kernel, pass "crashkernel=512M"
+via the U-Boot command line.
+
+NOTES:
+1. Use vmlinux as a secondary kernel. It can be found in the directory
+   tmp-glibc/work/<bsp name>-wrs-linux/linux-yocto/<kernel version>/linux-<bsp name>-<kernel type>-build/vmlinux
+2. 512 MB (the size of the memory reserved for crash kernel) is the
+   recommended amount of memory. If you add more features to the kernel, you
+   can increase this value to accommodate the capture kernel.
+
+Workaround:
+1. Kexec: DPAA2 is unsupported in 2nd kernel.
+   User can use on-board Intel E1000e card to do Ethernet functions in 2nd
+   kernel(e.g., mount NFS, scp).
+   User can turn DPAA2 off in two ways:
+a) Don't call "fsl_mc start" in U-Boot command line, this will disable the
+   DPAA2 both in the 1st and 2nd kernel.
+b) If 1st kernel has already enabled DPAA2, please use the below 3 commands
+   to destroy all DPNI interfaces in 1st kernel before calling "kexec -e":
+
+   # restool dprc show dprc.1 | grep dpni
+   /* Above command is to find all DPNI interfaces. */
+
+   # echo dpni.0 > /sys/bus/fsl-mc/devices/dpni.0/driver/unbind
+   /* Unbind DPNI interface from fsl_mc driver */
+
+   # restool dpni destroy dpni.0
+   /* Destroy this DPNI interface */
+
+2. Kdump: PCI-MSI and SMP is unsupported in 2nd kernel.
+   User needs to append two arguments "pci=nomsi maxcpus=1".
+   Since this 2nd kernel operates under significantly constrained
+   initialization conditions and is not meant to be a "replacement" kernel.
+   Rather it has a single goal -- to enable data collection with respect to
+   the issue that impacted the initial kernel, and nothing else.
+
+For more detailed information about kdump, please refer to
+Documentation/kdump/kdump.txt in the kernel source tree.
+
+
+```
