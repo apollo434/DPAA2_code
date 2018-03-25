@@ -672,3 +672,38 @@ Documentation/kdump/kdump.txt in the kernel source tree.
 
 
 ```
+
+command
+---
+```
+root@nxp-ls20xx:/sys/bus/fsl-mc/devices/dprc.3# cd driver
+root@nxp-ls20xx:/sys/bus/fsl-mc/devices/dprc.3/driver# echo dprc.3 > unbind
+root@nxp-ls20xx:/sys/bus/fsl-mc/devices/dprc.3/driver#
+
+root@nxp-ls20xx:/sys/bus/fsl-mc/devices/dprc.3/driver# restool dprc destroy dprc.3
+dprc.3 is destroyed
+root@nxp-ls20xx:/sys/bus/fsl-mc/devices/dprc.3/driver#
+
+```
+
+BUG in WRL9
+---
+```
+1. System hand
+
+root@nxp-lx2160:~# restool dprc destroy dprc.1
+dprc.1 cannot be destroyed because it is bound to driver:
+/sys/bus/fsl-mc/devices/dprc.1/driver -> ../../../../../bus/fsl-mc/drivers/fsl_mc_dprc
+unbind it first
+root@nxp-lx2160:~# cd /sys/bus/fsl-mc/devices/dprc.1/driver
+root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver# echo dprc.1 > unbind
+^[[root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver#
+root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver#
+root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver#
+root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver#
+root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver#
+root@nxp-lx2160:/sys/bus/fsl-mc/devices/dprc.1/driver# restool dprc destroy dprc.1
+
+2.
+
+```
